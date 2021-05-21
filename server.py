@@ -1,32 +1,52 @@
 import threading
 import socket
-alias = input('Choose an alias >>> ')
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(('127.0.0.1', 59000))
+host = '127.0.0.1'
+port = 59000
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((host, port))
+server.listen()
+clients = []
+aliases = []
 
 
-def client_receive():
+def broadcast(message):
+    for client in clients:
+        client.send(message)
+
+# Function to handle clients'connections
+
+
+def handle_client(client):
     while True:
         try:
-            message = client.recv(1024).decode('utf-8')
-            if message == "alias?":
-                client.send(alias.encode('utf-8'))
-            else:
-                print(message)
+            message = client.recv(1024)
+            broadcast(message)
         except:
-            print('Error!')
+            index = clients.index(client)
+            clients.remove(client)
             client.close()
+            alias = aliases[index]
+            broadcast(f'{alias} has left the chat room!'.encode('utf-8'))
+            aliases.remove(alias)
             break
+# Main function to receive the clients connection
 
 
-def client_send():
+def receive():
     while True:
-        message = f'{alias}: {input("")}'
-        client.send(message.encode('utf-8'))
+        print('Server is running and listening ...')
+        client, address = server.accept()
+        print(f'connection is established with {str(address)}')
+        client.send('alias?'.encode('utf-8'))
+        alias = client.recv(1024)
+        aliases.append(alias)
+        clients.append(client)
+        print(f'The alias of this client is {alias}'.encode('utf-8'))
+        broadcast(f'{alias} has connected to the chat room'.encode('utf-8'))
+        client.send('you are now connected!'.encode('utf-8'))
+        thread = threading.Thread(target=handle_client, args=(client,))
+        thread.start()
 
 
-receive_thread = threading.Thread(target=client_receive)
-receive_thread.start()
-
-send_thread = threading.Thread(target=client_send)
-send_thread.start()
+if __name__ == "__main__":
+    receive()
